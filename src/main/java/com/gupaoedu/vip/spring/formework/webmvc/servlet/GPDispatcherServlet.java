@@ -16,8 +16,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.gupaoedu.vip.spring.formework.webmvc.GPHandlerAdapter;
-import com.gupaoedu.vip.spring.formework.webmvc.GPHandlerMapping;
+import com.gupaoedu.vip.spring.formework.webmvc.*;
 import org.apache.log4j.Logger;
 
 public class GPDispatcherServlet extends HttpServlet {
@@ -29,7 +28,7 @@ public class GPDispatcherServlet extends HttpServlet {
     // 适配器模型，将 Request 的字符串参数自动适配为 Method 的 Java 实参，主要实现参数列表自动适配和类型转换的功能
     // ViewResolver 也算是一种策略，根据不同的请求选择不同的模板引擎来进行页面渲染
     private Map<GPHandlerMapping, GPHandlerAdapter> handlerAdapters = new HashMap<GPHandlerMapping, GPHandlerAdapter>();
-    private List<GPViewResolver> viewResolvers = new ArrayList<GDViewResolver>();
+    private List<GPViewResolver> viewResolvers = new ArrayList<GPViewResolver>();
     private GPApplicationContext context;
 
     @Override
@@ -74,7 +73,7 @@ public class GPDispatcherServlet extends HttpServlet {
             for (String beanName : beanNames) {
                 // 到了 MVC 层，对外提供的方法只有一个 getBean() 方法
                 // 返回的对象不是 BeanWrapper， 怎么办？
-                Object controller = context.getBean(beanName);
+                Object controller = context.getBean(beanName, false);
                 // Object controller = GPAopUtils.getTargetObject(proxy);
                 Class<?> clazz = controller.getClass();
                 if (!clazz.isAnnotationPresent(GPController.class)) {

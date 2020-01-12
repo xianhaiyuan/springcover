@@ -46,37 +46,39 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
         doRegisterBeanDefinition(beanDefinitions);
 
         // 4. 把不是延时加载的类提前初始化
-        doAutowrited();
+        instantiation();
+
+        // 依赖注入，会到 factoryBeanInstanceCache IoC 缓存中查找要注入的实例
+        // 所以依赖注入基于IoC控制反转
+        // 要保证 Service 要在 Action之前加载入IoC容器，否则会出现依赖注入失败的情况
+        // 所以必须先把所有的类先实例化放入 factoryBeanInstanceCache 缓存中，在进行依赖注入
+        populateBean();
+
+
     }
 
     // 只处理非延时加载情况
-    private void doAutowrited() {
+    private void instantiation() {
         for (Map.Entry<String, GPBeanDefinition> beanDefinitionEntry : super.beanDefinitionMap.entrySet()) {
             String beanName = beanDefinitionEntry.getKey();
+            Object a = beanDefinitionEntry.getValue();
+            Object b = a.getClass();
             if (!beanDefinitionEntry.getValue().isLazyInit()) {
                 try {
-                    getBean(beanName);
+                    getBean(beanName, true);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
         }
+
     }
-
-    private void doRegisterBeanDefinition(List<GPBeanDefinition> beanDefinitions) throws Exception {
-        for (GPBeanDefinition beandefinition : beanDefinitions) {
-            if (super.beanDefinitionMap.containsKey(beandefinition.getFactoryBeanName())) {
-                throw new Exception("The “" + beandefinition.getBeanClassName() + "” is exists!!");
-            }
-            super.beanDefinitionMap.put(beandefinition.getFactoryBeanName(), beandefinition);
-        }
-
-        // 到此为止， 容器初始化完毕
-    }
-
     // 先到 IoC 缓存查看有没有该 beanDefinition，没有则生成并放入
     // 有则将它包装成 GPBeanWrapper，并放入 factoryBeanInstanceCache，最后返回
-    public Object getBean(String beanName) throws Exception {
+    // 在项目第一次运行的时候 getBean 不进行依赖注入，而是先实例化所有类加入 factoryBeanInstanceCache 后再进行依赖注入
+    // 否则会注入失败
+    // 而请求页面的时候 getBean 需要进行依赖注入，用 isInstantiation 判定
+    public Object getBean(String beanName, boolean isInstantiation) throws Exception {
         GPBeanDefinition beanDefinition = super.beanDefinitionMap.get(beanName);
         try {
             // 生成通知事件
@@ -93,9 +95,11 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
 
             // 实例初始化以后调用一次
             beanPostProcessor.postProcessAfterInitialization(instance, beanName);
-            // 依赖注入，会到 factoryBeanInstanceCache IoC 缓存中查找要注入的实例
-            // 所以依赖注入基于IoC控制反转
-            populateBean(beanName, instance);
+
+            if (!isInstantiation) {
+                populateBean();
+            }
+
 
             return this.factoryBeanInstanceCache.get(beanName).getWrappedInstance();
         } catch (Exception e) {
@@ -104,33 +108,48 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
         }
     }
 
-    private void populateBean(String beanName, Object instance) {
-        Class clazz = instance.getClass();
-
-        if (!(clazz.isAnnotationPresent(GPController.class) || clazz.isAnnotationPresent(GPService.class))) {
-            return;
-        }
-        // 获取所有声明字段
-        Field[] fields = clazz.getDeclaredFields();
-
-        for (Field field : fields) {
-            if (!field.isAnnotationPresent(GPAutowired.class)) { continue; }
-
-            GPAutowired autowired = field.getAnnotation(GPAutowired.class);
-            String autowiredBeanName = autowired.value().trim();
-
-            if ("".equals(autowiredBeanName)) {
-                autowiredBeanName = field.getType().getName();
+    private void doRegisterBeanDefinition(List<GPBeanDefinition> beanDefinitions) throws Exception {
+        for (GPBeanDefinition beandefinition : beanDefinitions) {
+            if (super.beanDefinitionMap.containsKey(beandefinition.getFactoryBeanName())) {
+                throw new Exception("The “" + beandefinition.getBeanClassName() + "” is exists!!");
             }
-
-            field.setAccessible(true);
-            try {
-                field.set(instance, this.factoryBeanInstanceCache.get(autowiredBeanName).getWrappedInstance());
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            }
-
+            super.beanDefinitionMap.put(beandefinition.getFactoryBeanName(), beandefinition);
         }
+
+        // 到此为止， 容器初始化完毕
+    }
+
+    private void populateBean() {
+        for (Map.Entry<String, GPBeanWrapper> gpBeanWrapperEntry : this.factoryBeanInstanceCache.entrySet()) {
+            String beanName = gpBeanWrapperEntry.getKey();
+            Object instance = gpBeanWrapperEntry.getValue().getWrappedInstance();
+            Class clazz = instance.getClass();
+
+            if (!(clazz.isAnnotationPresent(GPController.class) || clazz.isAnnotationPresent(GPService.class))) {
+                return;
+            }
+            // 获取所有声明字段
+            Field[] fields = clazz.getDeclaredFields();
+
+            for (Field field : fields) {
+                if (!field.isAnnotationPresent(GPAutowired.class)) { continue; }
+
+                GPAutowired autowired = field.getAnnotation(GPAutowired.class);
+                String autowiredBeanName = autowired.value().trim();
+
+                if ("".equals(autowiredBeanName)) {
+                    autowiredBeanName = field.getType().getName();
+                }
+
+                field.setAccessible(true);
+                try {
+                    field.set(instance, this.factoryBeanInstanceCache.get(autowiredBeanName).getWrappedInstance());
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
     }
 
     // 查看 IoC 缓存里有没有该类的 beanDefinition，没有则实例化并放入
@@ -156,7 +175,7 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
     }
 
     public Object getBean(Class<?> beanClass) throws Exception {
-        return getBean(beanClass.getName());
+        return getBean(beanClass.getName(), true);
     }
 
     public String [] getBeanDefinitionNames() {
