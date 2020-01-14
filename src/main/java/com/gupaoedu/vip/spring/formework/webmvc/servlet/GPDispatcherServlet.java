@@ -17,10 +17,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.gupaoedu.vip.spring.formework.webmvc.*;
-import org.apache.log4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class GPDispatcherServlet extends HttpServlet {
-    private static Logger log = Logger.getLogger(GPDispatcherServlet.class);
     private final String LOCATION = "contextConfigLocation";
 
     // 策略模式的应用，用输入URL间接调用不同的Method
@@ -73,7 +73,7 @@ public class GPDispatcherServlet extends HttpServlet {
             for (String beanName : beanNames) {
                 // 到了 MVC 层，对外提供的方法只有一个 getBean() 方法
                 // 返回的对象不是 BeanWrapper， 怎么办？
-                Object controller = context.getBean(beanName, false);
+                Object controller = context.getBean(beanName);
                 // Object controller = GPAopUtils.getTargetObject(proxy);
                 Class<?> clazz = controller.getClass();
                 if (!clazz.isAnnotationPresent(GPController.class)) {

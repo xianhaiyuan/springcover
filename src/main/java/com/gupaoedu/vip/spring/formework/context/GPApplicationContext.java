@@ -3,6 +3,10 @@ package com.gupaoedu.vip.spring.formework.context;
 import com.gupaoedu.vip.spring.formework.annotation.GPAutowired;
 import com.gupaoedu.vip.spring.formework.annotation.GPController;
 import com.gupaoedu.vip.spring.formework.annotation.GPService;
+import com.gupaoedu.vip.spring.formework.aop.GPAopConfig;
+import com.gupaoedu.vip.spring.formework.aop.GPAopProxy;
+import com.gupaoedu.vip.spring.formework.aop.GPJdkDynamicAopProxy;
+import com.gupaoedu.vip.spring.formework.aop.support.GPAdvisedSupport;
 import com.gupaoedu.vip.spring.formework.beans.GPBeanWrapper;
 import com.gupaoedu.vip.spring.formework.beans.config.GPBeanDefinition;
 import com.gupaoedu.vip.spring.formework.beans.config.GPBeanPostProcessor;
@@ -52,33 +56,42 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
         // 所以依赖注入基于IoC控制反转
         // 要保证 Service 要在 Action之前加载入IoC容器，否则会出现依赖注入失败的情况
         // 所以必须先把所有的类先实例化放入 factoryBeanInstanceCache 缓存中，在进行依赖注入
-        populateBean();
-
 
     }
 
     // 只处理非延时加载情况
+    // 在项目第一次运行的时候 Action 类不能进行依赖注入，
+    // 而是先实例化 除Action 以外的类（Service类），把它们加入 factoryBeanInstanceCache 后再进行依赖注入
+    // 否则会注入失败
     private void instantiation() {
         for (Map.Entry<String, GPBeanDefinition> beanDefinitionEntry : super.beanDefinitionMap.entrySet()) {
             String beanName = beanDefinitionEntry.getKey();
-            Object a = beanDefinitionEntry.getValue();
-            Object b = a.getClass();
             if (!beanDefinitionEntry.getValue().isLazyInit()) {
                 try {
-                    getBean(beanName, true);
+                    if (!beanName.contains("Action")) {
+                        getBean(beanName);
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
         }
-
+        for (Map.Entry<String, GPBeanDefinition> beanDefinitionEntry : super.beanDefinitionMap.entrySet()) {
+            String beanName = beanDefinitionEntry.getKey();
+            if (!beanDefinitionEntry.getValue().isLazyInit()) {
+                try {
+                    if (beanName.contains("Action")) {
+                        getBean(beanName);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
     // 先到 IoC 缓存查看有没有该 beanDefinition，没有则生成并放入
     // 有则将它包装成 GPBeanWrapper，并放入 factoryBeanInstanceCache，最后返回
-    // 在项目第一次运行的时候 getBean 不进行依赖注入，而是先实例化所有类加入 factoryBeanInstanceCache 后再进行依赖注入
-    // 否则会注入失败
-    // 而请求页面的时候 getBean 需要进行依赖注入，用 isInstantiation 判定
-    public Object getBean(String beanName, boolean isInstantiation) throws Exception {
+    public Object getBean(String beanName) throws Exception {
         GPBeanDefinition beanDefinition = super.beanDefinitionMap.get(beanName);
         try {
             // 生成通知事件
@@ -96,9 +109,7 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
             // 实例初始化以后调用一次
             beanPostProcessor.postProcessAfterInitialization(instance, beanName);
 
-            if (!isInstantiation) {
-                populateBean();
-            }
+            populateBean(beanName, instance);
 
 
             return this.factoryBeanInstanceCache.get(beanName).getWrappedInstance();
@@ -119,37 +130,32 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
         // 到此为止， 容器初始化完毕
     }
 
-    private void populateBean() {
-        for (Map.Entry<String, GPBeanWrapper> gpBeanWrapperEntry : this.factoryBeanInstanceCache.entrySet()) {
-            String beanName = gpBeanWrapperEntry.getKey();
-            Object instance = gpBeanWrapperEntry.getValue().getWrappedInstance();
-            Class clazz = instance.getClass();
+    private void populateBean(String beanName, Object instance) {
+        Class clazz = instance.getClass();
 
-            if (!(clazz.isAnnotationPresent(GPController.class) || clazz.isAnnotationPresent(GPService.class))) {
-                return;
+        if (!(clazz.isAnnotationPresent(GPController.class) || clazz.isAnnotationPresent(GPService.class))) {
+            return;
+        }
+        // 获取所有声明字段
+        Field[] fields = clazz.getDeclaredFields();
+
+        for (Field field : fields) {
+            if (!field.isAnnotationPresent(GPAutowired.class)) { continue; }
+
+            GPAutowired autowired = field.getAnnotation(GPAutowired.class);
+            String autowiredBeanName = autowired.value().trim();
+
+            if ("".equals(autowiredBeanName)) {
+                autowiredBeanName = field.getType().getName();
             }
-            // 获取所有声明字段
-            Field[] fields = clazz.getDeclaredFields();
 
-            for (Field field : fields) {
-                if (!field.isAnnotationPresent(GPAutowired.class)) { continue; }
-
-                GPAutowired autowired = field.getAnnotation(GPAutowired.class);
-                String autowiredBeanName = autowired.value().trim();
-
-                if ("".equals(autowiredBeanName)) {
-                    autowiredBeanName = field.getType().getName();
-                }
-
-                field.setAccessible(true);
-                try {
-                    field.set(instance, this.factoryBeanInstanceCache.get(autowiredBeanName).getWrappedInstance());
-                } catch (IllegalAccessException e) {
-                    e.printStackTrace();
-                }
+            field.setAccessible(true);
+            try {
+                field.set(instance, this.factoryBeanInstanceCache.get(autowiredBeanName).getWrappedInstance());
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
             }
         }
-
     }
 
     // 查看 IoC 缓存里有没有该类的 beanDefinition，没有则实例化并放入
@@ -164,6 +170,14 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
                 Class<?> clazz = Class.forName(className);
                 instance = clazz.newInstance();
 
+                // AOP 植入代理
+                GPAdvisedSupport config = instantionAopConfig(beanDefinition);
+                config.setTargetClass(clazz);
+                config.setTarget(instance);
+                if (config.pointCutMatch()) {
+                    instance = createProxy(config).getProxy();
+                }
+                this.factoryBeanObjectCache.put(className, instance);
                 this.factoryBeanObjectCache.put(beanDefinition.getFactoryBeanName(), instance);
             }
 
@@ -173,9 +187,29 @@ public class GPApplicationContext extends GPDefaultListableBeanFactory implement
         }
         return null;
     }
+    // 读取 AOP 设置
+    private GPAdvisedSupport instantionAopConfig(GPBeanDefinition beanDefinition) throws Exception {
+        GPAopConfig config = new GPAopConfig();
+        config.setPointCut(reader.getConfig().getProperty("pointCut"));
+        config.setAspectClass(reader.getConfig().getProperty("aspectClass"));
+        config.setAspectBefore(reader.getConfig().getProperty("aspectBefore"));
+        config.setAspectAfter(reader.getConfig().getProperty("aspectAfter"));
+        config.setAspectAfterThrow(reader.getConfig().getProperty("aspectAfterThrow"));
+        config.setAspectAfterThrowingName(reader.getConfig().getProperty("aspectAfterThrowingName"));
+
+        return new GPAdvisedSupport(config);
+    }
+    // AOP 创建代理
+    private GPAopProxy createProxy(GPAdvisedSupport config) {
+        Class targetClass = config.getTargetClass();
+        if (targetClass.getInterfaces().length > 0) {
+            return new GPJdkDynamicAopProxy(config);
+        }
+        return new GPJdkDynamicAopProxy(config);
+    }
 
     public Object getBean(Class<?> beanClass) throws Exception {
-        return getBean(beanClass.getName(), true);
+        return getBean(beanClass.getName());
     }
 
     public String [] getBeanDefinitionNames() {

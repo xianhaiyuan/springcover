@@ -33,7 +33,7 @@ public class MyAction {
     }
     @GPRequestMapping("/add*.json")
     public GPModelAndView add(HttpServletRequest request, HttpServletResponse response, @GPRequestParam("name") String name,
-                              @GPRequestParam("addr") String addr) {
+                              @GPRequestParam("addr") String addr) throws Exception {
         String result = modifyService.add(name, addr);
         return out(response, result);
     }
