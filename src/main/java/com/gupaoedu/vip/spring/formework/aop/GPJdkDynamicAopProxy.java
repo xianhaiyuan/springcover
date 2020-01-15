@@ -41,6 +41,7 @@ public class GPJdkDynamicAopProxy implements GPAopProxy, InvocationHandler {
         // 交给拦截器链 MethodInvocation 的 proceed() 方法执行
         GPMethodInvocation invocation = new GPMethodInvocation(proxy, this.config.getTarget(), method, args,
                 this.config.getTargetClass(), interceptorsAndDynamicMethodMatchers);
+        // proceed 里实际上是递归调用的过程，不是递归自己，而是调用别的 Advice 里的 invoke 方法，形成递归调用链
         return invocation.proceed();
     }
 }

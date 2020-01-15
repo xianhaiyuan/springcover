@@ -33,7 +33,8 @@ public class GPMethodInvocation implements GPJoinPoint {
      * 如果拦截器链不为空，则将拦截器链中的方法按顺序执行，直到拦截器链中所有方法全部执行完毕
      */
     public Object proceed() throws Throwable {
-        // 如果 Interceptor 执行完了，则执行 joinPoint
+        // 如果 Interceptor 执行完了，即 interceptorsAndDynamicMethodMatchers 中所有的 Advice 都调用完了
+        // 则执行 joinPoint，即调用原生方法
         if (this.currentInterceptorIndex == this.interceptorsAndDynamicMethodMatchers.size() - 1) {
             return this.method.invoke(this.target, this.arguments);
         }
@@ -42,6 +43,7 @@ public class GPMethodInvocation implements GPJoinPoint {
         // 如果要动态匹配 joinPoint
         if (interceptorOrInterceptionAdvice instanceof GPMethodInterceptor) {
             GPMethodInterceptor mi = (GPMethodInterceptor) interceptorOrInterceptionAdvice;
+            // 实际上是调用所有 Advice 里的 invoke 方法，形成递归调用链，不是递归自己，而是调用别的 Advice 里的 invoke 方法
             return mi.invoke(this);
         } else {
             // 执行当前 Interceptor

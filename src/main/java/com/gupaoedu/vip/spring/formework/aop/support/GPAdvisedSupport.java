@@ -90,10 +90,12 @@ public class GPAdvisedSupport {
                     List<Object> advices = new LinkedList<Object>();
                     // 前置通知
                     if (!(null == config.getAspectBefore() || "".equals(config.getAspectBefore().trim()))) {
+                        // 实例化要增强的类，并获取要增强的方法，在 GPMethodBeforeAdvice 中可设计调用顺序
                         advices.add(new GPMethodBeforeAdvice(aspectMethods.get(config.getAspectBefore()),aspectClass.newInstance()));
                     }
                     // 后置通知
                     if (!(null == config.getAspectAfter() || "".equals(config.getAspectAfter().trim()))) {
+                        // 实例化要增强的类，并获取要增强的方法，在 GPAfterReturningAdvice 中可设计调用顺序
                         advices.add(new GPAfterReturningAdvice(aspectMethods.get(config.getAspectAfter()),aspectClass.newInstance()));
                     }
                     // 异常通知

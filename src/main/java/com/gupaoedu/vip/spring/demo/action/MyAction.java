@@ -28,6 +28,7 @@ public class MyAction {
 
     @GPRequestMapping("/query.json")
     public GPModelAndView query(HttpServletRequest request, HttpServletResponse response, @GPRequestParam("name") String name) {
+        // 配置 AOP 后，会去 GPJdkDynamicAopProxy 调用 invoke 方法
         String result = queryService.query(name);
         return out(response, result);
     }

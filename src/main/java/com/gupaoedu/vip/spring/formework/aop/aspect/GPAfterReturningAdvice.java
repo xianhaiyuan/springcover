@@ -12,6 +12,7 @@ public class GPAfterReturningAdvice extends GPAbstractAspectJAdvice implements G
     }
     @Override
     public Object invoke(GPMethodInvocation mi) throws Throwable {
+        // 调用原生方法，并获取返回值
         Object retVal = mi.proceed();
         this.joinPoint = mi;
         this.afterReturning(retVal, mi.getMethod(), mi.getArguments(), mi.getThis());

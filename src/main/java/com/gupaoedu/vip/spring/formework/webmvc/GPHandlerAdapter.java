@@ -19,7 +19,6 @@ public class GPHandlerAdapter {
 
         // 每个方法都有一个参数列表，这里保存的是形参列表
         Map<String, Integer> paramMapping = new HashMap<String, Integer>();
-
         // 这里只是给出命名参数
         Annotation[][] pa = handlerMapping.getMethod().getParameterAnnotations();
         for (int i = 0; i < pa.length; i++) {
@@ -75,8 +74,9 @@ public class GPHandlerAdapter {
             int resqIndex = paramMapping.get(HttpServletResponse.class.getName());
             paramValues[resqIndex] = resp;
         }
-
+        // 执行方法
         // 4. 从 handler 中取出 Controller、Method，然后利用反射机制进行调用
+        // 会去调用 Action 中的方法
         Object result = handlerMapping.getMethod().invoke(handlerMapping.getController(), paramValues);
 
         if (null == result) { return null; }

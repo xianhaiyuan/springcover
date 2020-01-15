@@ -19,6 +19,10 @@ import java.util.regex.Pattern;
 import com.gupaoedu.vip.spring.formework.webmvc.*;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * doDispatch 处理请求
+ * GPModelAndView mv = ha.handle(req, resp, handler); 真正调用方法
+ */
 @Slf4j
 public class GPDispatcherServlet extends HttpServlet {
     private final String LOCATION = "contextConfigLocation";
@@ -137,6 +141,7 @@ public class GPDispatcherServlet extends HttpServlet {
             e.printStackTrace();
         }
     }
+    // 处理请求
     private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws Exception {
         // 根据用户请求的 URL 来获得一个 Handler
         GPHandlerMapping handler = getHandler(req);
@@ -145,7 +150,7 @@ public class GPDispatcherServlet extends HttpServlet {
             return;
         }
         GPHandlerAdapter ha = getHandlerAdapter(handler);
-        // 这一步只是调用方法，得到返回值
+        // 这一步只是调用方法，得到返回值（真正调用方法）
         GPModelAndView mv = ha.handle(req, resp, handler);
 
         // 这一步才是真的输出
@@ -176,7 +181,7 @@ public class GPDispatcherServlet extends HttpServlet {
         return null;
     }
 
-    // 根据 url 获取对应的 handler
+    // 根据 url 获取对应的 handlerMapping
     private GPHandlerMapping getHandler(HttpServletRequest req) {
         if (this.handlerMappings.isEmpty()) { return null; }
         String url = req.getRequestURI();

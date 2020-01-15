@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
+/**
 public class QueryRuleSqlBuilder {
     private int CURR_INDEX = 0; // 记录参数所在的位置
     private List<String> properties; // 保存列名列表
@@ -173,3 +173,4 @@ public class QueryRuleSqlBuilder {
         add(rule.getAndOr(),rule.getPropertyName(),"<=",rule.getValues()[0]);
     }
 }
+**/

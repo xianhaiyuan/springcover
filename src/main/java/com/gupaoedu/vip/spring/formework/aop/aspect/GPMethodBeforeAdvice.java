@@ -16,8 +16,11 @@ public class GPMethodBeforeAdvice extends GPAbstractAspectJAdvice implements GPA
     // 在 invoke() 中控制前置通知的调用顺序
     @Override
     public Object invoke(GPMethodInvocation mi) throws Throwable {
+        // 连接点,即原生方法
         this.joinPoint = mi;
+        // 执行要增强的方法
         this.before(mi.getMethod(), mi.getArguments(), mi.getThis());
+        // 主要作用是调用所有 interceptorsAndDynamicMethodMatchers 里的 Advice，最后再执行原生方法
         return mi.proceed();
     }
 }
